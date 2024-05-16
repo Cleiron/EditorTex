@@ -1,0 +1,701 @@
+<html>
+<head>
+<title>Editor de ecuaciones TeX</title>
+<style>
+body {
+	font-family: Cambria;
+	background: #4286f4;  /* fallback for old browsers */
+	background: -webkit-linear-gradient(to right, #8CBED6, #4286f4);  /* Chrome 10-25, Safari 5.1-6 */
+	background: linear-gradient(to right, #8CBED6, #4286f4); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
+}
+
+h1 {
+	padding-left: 5px;
+	text-decoration: underline;
+}
+
+hr {
+	border-top: 2px solid black;
+}
+button {
+	border-radius: 8px;
+	background-color: black;
+	color: white;
+	min-height: 20px;
+}
+
+td {
+	font-weight: bold;
+	zoom: 110%;
+}
+textarea {
+	background-color: black;
+	color: white;
+}
+dialog {
+	background-color: lightgreen;
+	font-family: Calibri;
+}
+.ecuacion {
+	zoom: 250%;
+}
+.conborde {
+	border: black 2px solid;
+	zoom: 110%;
+}
+.link {
+	font-family: Calibri;
+	font-style: italic;
+	color: blue;
+}
+.fondotabla {
+	background-color: rgba(255, 255, 255, 0.3);
+	padding-left: 5px;
+	padding-right: 5px;
+	padding-top: 5px;
+	padding-bottom: 5px;
+}
+
+#avisodecopiado {
+	border-radius: 30px;
+}
+
+.botones button:hover {
+	background-color: #ffc04c;
+	color: black;
+}
+.flexcenter {
+	display: flex;
+	justify-content:center;
+	flex-direction:column;
+	align-items:center;
+}
+.mt {
+	margin-top: 1rem;
+}
+</style>
+<link rel="icon" type="image/png" href="http://algunascosas.eshost.com.ar/img/icono.png" />
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<script>
+var deshacer = Array();
+function VistaPrevia() {
+	deshacer.push(document.getElementById("ecuacion").value);
+    var codigo = '\\( ' + document.getElementById("ecuacion").value + ' \\)';
+	document.getElementById("Vista").innerHTML='<p class="ecuacion">' + codigo + '</p>';
+	MathJax.typeset();
+	if (document.getElementById("tablahistorial").scrollTop != document.getElementById("tablahistorial").scrollHeight) {
+		document.getElementById("tablahistorial").scrollTop = document.getElementById("tablahistorial").scrollHeight;
+		document.getElementById("tablahistorial").style.height = document.getElementById("editor").offsetHeight - 10;
+	}
+}
+
+function Deshacer() {
+	if (deshacer.length>1) {
+		deshacer.pop();
+		document.getElementById("ecuacion").value = deshacer.pop();
+		VistaPrevia();
+	}
+}
+
+function copyToClipboard(txt) {
+if (document.queryCommandSupported && document.queryCommandSupported("copy")) { 
+// Ref 1
+var textarea = document.createElement("textarea");
+// Ref 2
+textarea.textContent = txt;
+// Evita scroll al elemento en Edge
+ textarea.style.position = "fixed"; document.body.appendChild(textarea);
+ // Ref 3
+ textarea.select();
+ // Algunos navegadores pueden lanzar una excepción de seguridad
+ try { // Ref 4
+ return document.execCommand("copy"); } catch (ex) { console.warn("Copy to clipboard failed.", ex); return false; } finally { document.body.removeChild(textarea); } } 
+}
+
+var historial = Array();
+function AgregarAlHistorial() {
+	historial.push(QuitarEspaciosExc(document.getElementById("ecuacion").value));
+	ActualizarHistorial();
+}
+
+function QuitarDelHistorial(num) {
+	historial.splice(num,1);
+	ActualizarHistorial();
+}
+
+function ActualizarHistorial() {
+	if (historial.length > 0) {
+		var i;
+		var codigotabla = '<h2><center><u>Historial de ecuaciones</u></center></h2><table><tr><th></th><th>Vista</th><th>Entrada</th></tr>';
+		if (!moviendo) {
+			for (i=0; i<historial.length; i++) {
+				codigotabla += '<tr><td><button onclick="QuitarDelHistorial('+i+')">X</button><button onclick="Mover('+i+')">↕</button></td><td class="conborde"><p>' + '\\( ' + historial[i] + ' \\)</p></td><td class="conborde"><textarea cols="30" readonly>\\( ' + historial[i] + ' \\)</textarea></td></tr>';
+			}
+		} else {
+			for (i=0; i<historial.length; i++) {
+				codigotabla += '<tr><td><button onclick="Mover('+i+')">Aquí</button></td><td class="conborde"><p>' + '\\( ' + historial[i] + ' \\)</p></td><td class="conborde"><textarea cols="30" readonly>\\( ' + historial[i] + ' \\)</textarea></td></tr>';
+			}
+		}
+		codigotabla += '</table>';
+	} else var codigotabla = "";
+	document.getElementById("tablahistorial").innerHTML = codigotabla;
+	MathJax.typeset();
+}
+
+function ObtenerSeleccion(idElemento) {
+	var inicio = document.getElementById(idElemento).selectionStart;
+	var fin = document.getElementById(idElemento).selectionEnd;
+	var seleccion = window.getSelection().toString();
+	
+	var cadena = document.getElementById(idElemento).value;
+	var antes = cadena.substring(0,inicio);
+	var despues = cadena.substring(fin, cadena.length);
+	//document.getElementById(idElemento).focus();
+	return [antes, seleccion, despues];
+}
+
+function InsertarEnSeleccion(primeraparte,segundaparte, idElemento) {
+	//inserta antes de la seleccion la primera parte y luego de esta la segunda parte
+	[antes, seleccion, despues] = ObtenerSeleccion(idElemento);
+	document.getElementById(idElemento).value = antes + primeraparte + seleccion + segundaparte + despues;
+	document.getElementById(idElemento).selectionStart = antes.length + primeraparte.length;
+	document.getElementById(idElemento).selectionEnd = antes.length + primeraparte.length + seleccion.length;
+	document.getElementById(idElemento).focus();
+}
+
+function InsertarEntidad (tipo, idElemento) {
+	switch (tipo) {
+		case 'fraccion': InsertarEnSeleccion('\\frac{','}{} ',idElemento);
+		break;
+		case 'parentesis': InsertarEnSeleccion('\\left ( {','}\\right ) ',idElemento);
+		break;
+		case 'corchetes':InsertarEnSeleccion('\\left [ {','}\\right ] ',idElemento);
+		break;
+		case 'llaves':InsertarEnSeleccion('\\left \\{ {','}\\right \\} ',idElemento);
+		break;
+		case 'modulo':InsertarEnSeleccion('\\left | {','}\\right | ',idElemento);
+		break;
+		case 'llaveabrir':InsertarEnSeleccion('\\left \\{ ','\\right. ',idElemento);
+		break;
+		case 'raiz': InsertarEnSeleccion('\\sqrt{','} ',idElemento);
+		break;
+		case 'raiz3': InsertarEnSeleccion('\\sqrt[3]{','} ',idElemento);
+		break;
+		case 'raizn': InsertarEnSeleccion('\\sqrt[]{','} ',idElemento);
+		break;
+		case 'exp-1': InsertarEnSeleccion('{','}^{-1} ',idElemento);
+		break;
+		case 'exp2': InsertarEnSeleccion('{','}^{2} ',idElemento);
+		break;
+		case 'exp3': InsertarEnSeleccion('{','}^{3} ',idElemento);
+		break;
+		case 'expn': InsertarEnSeleccion('{','}^{} ',idElemento);
+		break;
+		case 'subn': InsertarEnSeleccion('{','}_{} ',idElemento);
+		break;
+		case 'N': InsertarEnSeleccion('\\mathbb{N} ','',idElemento);
+		break;
+		case 'Z': InsertarEnSeleccion('\\mathbb{Z} ','',idElemento);
+		break;
+		case 'Q': InsertarEnSeleccion('\\mathbb{Q} ','',idElemento);
+		break;
+		case 'I': InsertarEnSeleccion('\\mathbb{I} ','',idElemento);
+		break;
+		case 'R': InsertarEnSeleccion('\\mathbb{R} ','',idElemento);
+		break;
+		case 'C': InsertarEnSeleccion('\\mathbb{C} ','',idElemento);
+		break;
+		case 'vacio': InsertarEnSeleccion('\\emptyset ','',idElemento);
+		break;
+		case 'vacio2': InsertarEnSeleccion('\\varnothing ','',idElemento);
+		break;
+		case 'N0': InsertarEnSeleccion('\\mathbb{N}_{0} ','',idElemento);
+		break;
+		case 'R+': InsertarEnSeleccion('\\mathbb{R}^{+} ','',idElemento);
+		break;
+		case 'R-': InsertarEnSeleccion('\\mathbb{R}^{-} ','',idElemento);
+		break;
+		case 'R+0': InsertarEnSeleccion('\\mathbb{R}^{+}_{0} ','',idElemento);
+		break;
+		case 'Z-': InsertarEnSeleccion('\\mathbb{Z}^{-} ','',idElemento);
+		break;
+		case 'C+': InsertarEnSeleccion('C^{+} ','',idElemento);
+		break;
+		case 'C-': InsertarEnSeleccion('C^{-} ','',idElemento);
+		break;
+		case 'C0': InsertarEnSeleccion('C_{0} ','',idElemento);
+		break;
+		case 'I+': InsertarEnSeleccion('I^{\\uparrow} ','',idElemento);
+		break;
+		case 'I-': InsertarEnSeleccion('I^{\\downarrow} ','',idElemento);
+		break;
+		case 'xab': InsertarEnSeleccion('{','}^{}_{}',idElemento);
+		break;
+		case 'alpha': InsertarEnSeleccion('\\alpha ','',idElemento);
+		break;
+		case 'beta': InsertarEnSeleccion('\\beta ','',idElemento);
+		break;
+		case 'gamma': InsertarEnSeleccion('\\gamma ','',idElemento);
+		break;
+		case 'delta': InsertarEnSeleccion('\\delta ','',idElemento);
+		break;
+		case 'Delta': InsertarEnSeleccion('\\Delta ','',idElemento);
+		break;
+		case 'epsilon': InsertarEnSeleccion('\\epsilon ','',idElemento);
+		break;
+		case 'theta': InsertarEnSeleccion('\\theta ','',idElemento);
+		break;
+		case 'lambda': InsertarEnSeleccion('\\lambda ','',idElemento);
+		break;
+		case 'mu': InsertarEnSeleccion('\\mu ','',idElemento);
+		break;
+		case 'xi': InsertarEnSeleccion('\\xi ','',idElemento);
+		break;
+		case 'pi': InsertarEnSeleccion('\\pi ','',idElemento);
+		break;
+		case 'rho': InsertarEnSeleccion('\\rho ','',idElemento);
+		break;
+		case 'phi': InsertarEnSeleccion('\\phi ','',idElemento);
+		break;
+		case 'varphi': InsertarEnSeleccion('\\varphi ','',idElemento);
+		break;
+		case 'omega': InsertarEnSeleccion('\\omega ','',idElemento);
+		break;
+		case 'paratodo': InsertarEnSeleccion('\\forall ','',idElemento);
+		break;
+		case 'existe': InsertarEnSeleccion('\\exists ','',idElemento);
+		break;
+		case 'noexiste': InsertarEnSeleccion('\\nexists ','',idElemento);
+		break;
+		case 'pertenece': InsertarEnSeleccion('\\in ','',idElemento);
+		break;
+		case 'nopertenece': InsertarEnSeleccion('\\notin ','',idElemento);
+		break;
+		case 'incluido': InsertarEnSeleccion('\\subset ','',idElemento);
+		break;
+		case 'incluidoigual': InsertarEnSeleccion('\\subseteq ','',idElemento);
+		break;
+		case 'menorigual': InsertarEnSeleccion('\\leq ','',idElemento);
+		break;
+		case 'mayorigual': InsertarEnSeleccion('\\geq ','',idElemento);
+		break;
+		case 'mayor': InsertarEnSeleccion('> ','',idElemento);
+		break;
+		case 'menor': InsertarEnSeleccion('< ','',idElemento);
+		break;
+		case 'mayormenor': InsertarEnSeleccion('\\lessgtr ','',idElemento);
+		break;
+		case 'aproximadamente': InsertarEnSeleccion('\\approx ','',idElemento);
+		break;
+		case 'aprox': InsertarEnSeleccion('\\cong ','',idElemento);
+		break;
+		case 'distinto': InsertarEnSeleccion('\\neq ','',idElemento);
+		break;
+		case '+-': InsertarEnSeleccion('\\pm ','',idElemento);
+		break;
+		case 'y': InsertarEnSeleccion('\\wedge ','',idElemento);
+		break;
+		case 'o': InsertarEnSeleccion('\\vee ','',idElemento);
+		break;
+		case 'oexcl': InsertarEnSeleccion('\\veebar ','',idElemento);
+		break;
+		case 'entonces': InsertarEnSeleccion('\\Rightarrow ','',idElemento);
+		break;
+		case 'sii': InsertarEnSeleccion('\\Leftrightarrow ','',idElemento);
+		break;
+		case 'porlotanto': InsertarEnSeleccion('\\therefore ','',idElemento);
+		break;
+		case 'en': InsertarEnSeleccion('\\rightarrow ','',idElemento);
+		break;
+		case 'union': InsertarEnSeleccion('\\cup ','',idElemento);
+		break;
+		case 'interseccion': InsertarEnSeleccion('\\cap ','',idElemento);
+		break;
+		case 'infinito': InsertarEnSeleccion('\\infty ','',idElemento);
+		break;
+		case 'composicion': InsertarEnSeleccion('\\circ ','',idElemento);
+		break;
+		case 'perpendicular': InsertarEnSeleccion('\\perp ','',idElemento);
+		break;
+		case 'paralela': InsertarEnSeleccion('\\parallel ','',idElemento);
+		break;
+		case 'vectorial': InsertarEnSeleccion('\\times ','',idElemento);
+		break;
+		case 'equivalente': InsertarEnSeleccion('\\equiv ','',idElemento);
+		break;
+		case 'semejante': InsertarEnSeleccion('\\sim ','',idElemento);
+		break;
+		case 'congruente': InsertarEnSeleccion('\\;{=}_{\\text{c}}\\; ','',idElemento);
+		break; 
+		case 'esp1': InsertarEnSeleccion('\\, ','',idElemento);
+		break;
+		case 'esp2': InsertarEnSeleccion('\\; ','',idElemento);
+		break;
+		case 'espneg': InsertarEnSeleccion('\\! ','',idElemento);
+		break;
+		case 'esp3': InsertarEnSeleccion('\\quad ','',idElemento);
+		break;
+		case 'esp4': InsertarEnSeleccion('\\qquad ','',idElemento);
+		break;
+		case 'esp4': InsertarEnSeleccion('\\qquad ','',idElemento);
+		break;
+		case 'rojo': 
+			if (ObtenerSeleccion(idElemento)[1].length == 0) InsertarEnSeleccion('\\color{red} ','',idElemento); else InsertarEnSeleccion('{\\color{red} ','}',idElemento);
+			break;
+		case 'verde': 
+			if (ObtenerSeleccion(idElemento)[1].length == 0) InsertarEnSeleccion('\\color{green} ','',idElemento); else InsertarEnSeleccion('{\\color{green} ','}',idElemento);
+			break;
+		case 'azul':
+			if (ObtenerSeleccion(idElemento)[1].length == 0) InsertarEnSeleccion('\\color{blue} ','',idElemento); else InsertarEnSeleccion('{\\color{blue} ','}',idElemento);
+			break;
+		case 'naranja': 
+			if (ObtenerSeleccion(idElemento)[1].length == 0) InsertarEnSeleccion('\\color{orange} ','',idElemento); else InsertarEnSeleccion('{\\color{orange} ','}',idElemento);
+			break;
+		case 'amarillo': 
+			if (ObtenerSeleccion(idElemento)[1].length == 0) InsertarEnSeleccion('\\color{yellow} ','',idElemento); else InsertarEnSeleccion('{\\color{yellow} ','}',idElemento);
+			break;
+		case 'purpura':
+			if (ObtenerSeleccion(idElemento)[1].length == 0) InsertarEnSeleccion('\\color{purple} ','',idElemento); else InsertarEnSeleccion('{\\color{purple} ','}',idElemento);
+			break;
+		case 'negro': 
+			if (ObtenerSeleccion(idElemento)[1].length == 0) InsertarEnSeleccion('\\color{black} ','',idElemento); else InsertarEnSeleccion('{\\color{black} ','}',idElemento);
+			break;
+		case 'enorme': 
+			if (ObtenerSeleccion(idElemento)[1].length == 0) InsertarEnSeleccion('\\huge ','',idElemento); else InsertarEnSeleccion('{\\huge ','}',idElemento);
+			break;
+		case 'grande': 
+			if (ObtenerSeleccion(idElemento)[1].length == 0) InsertarEnSeleccion('\\large ','',idElemento); else InsertarEnSeleccion('{\\large ','}',idElemento);
+			break;
+		case 'pequeno': 
+			if (ObtenerSeleccion(idElemento)[1].length == 0) InsertarEnSeleccion('\\small ','',idElemento); else InsertarEnSeleccion('{\\small ','}',idElemento);
+			break;
+		case 'diminuto': 
+			if (ObtenerSeleccion(idElemento)[1].length == 0) InsertarEnSeleccion('\\tiny ','',idElemento); else InsertarEnSeleccion('{\\tiny ','}',idElemento);
+			break;
+		case 'vector': InsertarEnSeleccion('\\overrightarrow{','} ',idElemento);
+		break;
+		case 'vectorfijo': InsertarEnSeleccion('\\overset{\\rightharpoonup}{','} ',idElemento);
+		break;
+		case 'versor': InsertarEnSeleccion('\\breve{','} ',idElemento);
+		break;
+		case 'segmento': InsertarEnSeleccion('\\overline{','} ',idElemento);
+		break;
+		case 'sombrero': InsertarEnSeleccion('\\widehat{','} ',idElemento);
+		break;
+		case 'mono': InsertarEnSeleccion('\\widetilde{','} ',idElemento);
+		break;
+		case 'limite': InsertarEnSeleccion('\\displaystyle\\lim_{x \\to a}','',idElemento);
+		break;
+		case 'integraldef': InsertarEnSeleccion('\\displaystyle\\int_{a}^{b} ','',idElemento);
+		break;
+		case 'integralindef': InsertarEnSeleccion('\\displaystyle\\int ','',idElemento);
+		break;
+		case 'derivada': InsertarEnSeleccion('\\frac{\\text{d}}{\\text{d}x} ','',idElemento);
+		break;
+		case 'derivadaparcial': InsertarEnSeleccion('\\frac{\\partial}{\\partial x} ','',idElemento);
+		break;
+		case 'd': InsertarEnSeleccion('\\text{d} ','',idElemento);
+		break;
+		case 'dj': InsertarEnSeleccion('\\partial ','',idElemento);
+		break;
+		case 'sumatoria': InsertarEnSeleccion('\\displaystyle\\sum_{k=1}^{N} ','',idElemento);
+		break;
+		case 'productoria': InsertarEnSeleccion('\\displaystyle\\prod_{k=1}^{N} ','',idElemento);
+		break;
+		case 'uniongen': InsertarEnSeleccion('\\displaystyle\\bigcup_{i \\in I}^{}','',idElemento);
+		break;
+		case 'intersecciongen': InsertarEnSeleccion('\\displaystyle\\bigcap_{i \\in I}^{}','',idElemento);
+		break;
+		case 'sumadirecta': InsertarEnSeleccion('\\oplus ','',idElemento);
+		break;
+	}
+	VistaPrevia();
+}
+
+function CopiarCodigoHistorial () {
+	var i, acopiar = "";
+	for (i=0; i<historial.length; i++) {
+		acopiar += '\\( '+historial[i]+' \\)\n';
+	}
+	copyToClipboard(acopiar);
+}
+
+var moviendo = false, norigen_mov;
+function Mover(num) {
+    if (!moviendo) {
+	    norigen_mov = num;
+		moviendo = true;
+		ActualizarHistorial();
+		} else {
+	    moviendo = false;
+		var movido = Array();
+		movido = historial[norigen_mov];
+		historial.splice(norigen_mov,1);
+		historial.splice(num,0,movido);
+		ActualizarHistorial();
+	}
+}
+
+function QuitarEspaciosExc(cadena) {
+	var salida = "";
+	var i, j=0, espacio = false;
+	while (cadena[j]==" ") j++;
+	for (i = j; i < cadena.length; i++) {
+		if (espacio) {
+			if (cadena[i]!=" ") {
+				espacio = false;
+				salida += ' '+cadena[i];
+			}
+		} else {
+			if (cadena[i]==" ") espacio = true; else salida += cadena[i];
+		}
+	}
+	return salida;
+}
+
+function QuitarEspaciosEnTextarea (idTextarea) {
+	document.getElementById(idTextarea).value = QuitarEspaciosExc(document.getElementById(idTextarea).value);
+	VistaPrevia();
+}
+
+function InsertarMatriz(idElemento) {
+	var filasm = document.getElementById('filasmatriz').value, colsm = document.getElementById('colmatriz').value, tipom = document.getElementById('tipomatriz').value;
+	var codigotex='\\begin{'+document.getElementById('tipomatriz').value+'}';
+	var i, j;
+	for (i=1; i <= filasm; i++) {
+		for (j=1; j <= colsm; j++) {
+			codigotex += '{ a_{'+i+','+j+'} }';
+			if (j != colsm) codigotex += '&'; else {if (i != filasm) codigotex +='\\\\'; else codigotex += '\\end{'+tipom+'} ';}
+		}
+	}
+	InsertarEnSeleccion(codigotex,'',idElemento);
+	VistaPrevia();
+	document.getElementById('crearmatriz').close();
+	document.getElementById(idElemento).focus();
+}
+
+function InsertarTrozos(idElemento) {
+	var trozos = document.getElementById('trozos').value;
+	var codigotex='f(x)=\\left \\{ \\begin{matrix}';
+	var i;
+	for (i=1; i <= trozos; i++) {
+		codigotex += '{ ... }&{ si\\; ...}';
+		if (i != trozos) codigotex +='\\\\'; else codigotex += '\\end{matrix}\\right. ';
+	}
+	InsertarEnSeleccion(codigotex,'',idElemento);
+	VistaPrevia();
+	document.getElementById('crearfunciontrozos').close();
+	document.getElementById(idElemento).focus();
+}
+
+function InsertarSisEc(idElemento) {
+	var cant_ec = document.getElementById('cantecuaciones').value;
+	var codigotex='\\left \\{ \\begin{matrix}';
+	var i;
+	for (i=1; i <= cant_ec; i++) {
+		codigotex += '{ ... }';
+		if (i != cant_ec) codigotex +='\\\\'; else codigotex += '\\end{matrix}\\right. ';
+	}
+	InsertarEnSeleccion(codigotex,'',idElemento);
+	VistaPrevia();
+	document.getElementById('crearsistemadeecuaciones').close();
+	document.getElementById(idElemento).focus();
+}
+
+function InsertarDesdeAsistente(idElemento) {
+	var codigotex = document.getElementById("latex").value;
+	InsertarEnSeleccion(codigotex,'',idElemento);
+	VistaPrevia();
+	document.getElementById('asistente').close();
+	mathField.latex('');
+	document.getElementById(idElemento).focus();
+}
+
+function SobrescribirDesdeAsistente(idElemento) {
+	var codigotex = document.getElementById("latex").value;
+	document.getElementById(idElemento).value = codigotex;
+	VistaPrevia();
+	document.getElementById('asistente').close();
+	mathField.latex('');
+	document.getElementById(idElemento).focus();
+}
+</script>
+<!-- MathQuill  --> 
+<link rel="stylesheet" href="http://mathquill.com/lib/mathquill.css"/>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+<script src="http://mathquill.com/lib/mathquill.js"></script>
+<script>
+var MQ = MathQuill.getInterface(2);
+</script>
+<!-- MathQuill  --> 
+<script>
+function AvisodeCopiado() {
+	document.getElementById('avisodecopiado').showModal();
+	setTimeout(function(){
+		document.getElementById('avisodecopiado').close();
+		document.getElementById('ecuacion').focus();
+		}
+	, 1750);
+}
+</script>
+
+
+</head>
+<body onload="VistaPrevia();">
+<h1>Editor de ecuaciones TeX</h1>
+<br>
+
+<table><tr><td valign="top"><div id="editor" class="fondotabla">
+<table class="botones"><tr><td class="conborde">
+<div class="flexcenter">
+<div><button onclick="InsertarEntidad('fraccion','ecuacion');">\( \frac{a}{b} \)</button><button onclick="InsertarEntidad('parentesis','ecuacion');">( )</button><button onclick="InsertarEntidad('corchetes','ecuacion');">[ ]</button><button onclick="InsertarEntidad('modulo','ecuacion');">| |</button><button onclick="InsertarEntidad('llaves','ecuacion');">{ }</button><button onclick="InsertarEntidad('llaveabrir','ecuacion');">{</button></div>
+<div><button onclick="InsertarEntidad('raiz','ecuacion');">\( \sqrt{x} \)</button><button onclick="InsertarEntidad('raiz3','ecuacion');">\( \sqrt[3]{x} \)</button><button onclick="InsertarEntidad('raizn','ecuacion');">\( \sqrt[n]{x} \)</button></div>
+<div><button onclick="InsertarEntidad('exp-1','ecuacion');">\( {x}^{-1} \)</button><button onclick="InsertarEntidad('exp2','ecuacion');">\( {x}^{2} \)</button><button onclick="InsertarEntidad('exp3','ecuacion');">\( {x}^{3} \)</button><button onclick="InsertarEntidad('expn','ecuacion');">\( {x}^{n} \)</button><button onclick="InsertarEntidad('subn','ecuacion');">\( {x}_{n} \)</button><button onclick="InsertarEntidad('xab','ecuacion');">\( {x}^{a}_{b} \)</button></div>
+<div><button onclick="InsertarEntidad('vector','ecuacion');">\( \overrightarrow{a} \)</button><button onclick="InsertarEntidad('vectorfijo','ecuacion');">\( \overset{\rightharpoonup}{a} \)</button><button onclick="InsertarEntidad('versor','ecuacion');">\( \breve{a} \)</button><button onclick="InsertarEntidad('segmento','ecuacion');">\( \overline{a} \)</button><button onclick="InsertarEntidad('sombrero','ecuacion');">\( \widehat{a} \)</button><button onclick="InsertarEntidad('mono','ecuacion');">\( \widetilde{a} \)</button></div>
+</div></td><td class="conborde"><center>
+<button onclick="InsertarEntidad('N','ecuacion');">\( \mathbb{N} \)</button><button onclick="InsertarEntidad('Z','ecuacion');">\( \mathbb{Z} \)</button><button onclick="InsertarEntidad('Q','ecuacion');">\( \mathbb{Q} \)</button><button onclick="InsertarEntidad('I','ecuacion');">\( \mathbb{I} \)</button><button onclick="InsertarEntidad('R','ecuacion');">\( \mathbb{R} \)</button><button onclick="InsertarEntidad('C','ecuacion');">\( \mathbb{C} \)</button><button onclick="InsertarEntidad('vacio','ecuacion');">\( \emptyset \)</button><button onclick="InsertarEntidad('vacio2','ecuacion');">\( \varnothing \)</button><br>
+<button onclick="InsertarEntidad('N0','ecuacion');">\( \mathbb{N}_{0} \)</button><button onclick="InsertarEntidad('Z-','ecuacion');">\( \mathbb{Z}^{-} \)</button><button onclick="InsertarEntidad('R+','ecuacion');">\( \mathbb{R}^{+} \)</button><button onclick="InsertarEntidad('R+0','ecuacion');">\( \mathbb{R}^{+}_{0} \)</button><button onclick="InsertarEntidad('R-','ecuacion');">\( \mathbb{R}^{-} \)</button><button onclick="InsertarEntidad('infinito','ecuacion');">\( \infty \)</button><br>
+<button onclick="InsertarEntidad('I+','ecuacion');">\( I^{\uparrow} \)</button><button onclick="InsertarEntidad('I-','ecuacion');">\( I^{\downarrow} \)</button><button onclick="InsertarEntidad('C+','ecuacion');">\( C^{+} \)</button><button onclick="InsertarEntidad('C-','ecuacion');">\( C^{-} \)</button><button onclick="InsertarEntidad('C0','ecuacion');">\( C_{0} \)</button><br>
+</center>
+<hr><center>
+<button onclick="InsertarEntidad('alpha','ecuacion');">\( \alpha \)</button><button onclick="InsertarEntidad('beta','ecuacion');">\( \beta \)</button><button onclick="InsertarEntidad('gamma','ecuacion');">\( \gamma \)</button><button onclick="InsertarEntidad('delta','ecuacion');">\( \delta \)</button><button onclick="InsertarEntidad('Delta','ecuacion');">\( \Delta \)</button><button onclick="InsertarEntidad('epsilon','ecuacion');">\( \epsilon \)</button><button onclick="InsertarEntidad('theta','ecuacion');">\( \theta \)</button><button onclick="InsertarEntidad('lambda','ecuacion');">\( \lambda \)</button><br>
+<button onclick="InsertarEntidad('mu','ecuacion');">\( \mu \)</button><button onclick="InsertarEntidad('xi','ecuacion');">\( \xi \)</button><button onclick="InsertarEntidad('pi','ecuacion');">\( \pi \)</button><button onclick="InsertarEntidad('rho','ecuacion');">\( \rho \)</button><button onclick="InsertarEntidad('phi','ecuacion');">\( \phi \)</button><button onclick="InsertarEntidad('varphi','ecuacion');">\( \varphi \)</button><button onclick="InsertarEntidad('omega','ecuacion');">\( \omega \)</button>
+</center>
+</td><td class="conborde">
+<div class="flexcenter mt">
+<div><button onclick="InsertarEntidad('paratodo','ecuacion');">\( \forall \)</button><button onclick="InsertarEntidad('existe','ecuacion');">\( \exists \)</button><button onclick="InsertarEntidad('noexiste','ecuacion');">\( \nexists \)</button><button onclick="InsertarEntidad('pertenece','ecuacion');">\( \in \)</button><button onclick="InsertarEntidad('nopertenece','ecuacion');">\( \notin \)</button><button onclick="InsertarEntidad('incluido','ecuacion');">\( \subset \)</button><button onclick="InsertarEntidad('incluidoigual','ecuacion');">\( \subseteq \)</button><button onclick="InsertarEntidad('+-','ecuacion');">\( \pm \)</button><button onclick="InsertarEntidad('sumadirecta','ecuacion');">\( \oplus \)</button></div>
+<div><button onclick="InsertarEntidad('union','ecuacion');">\( \cup \)</button> <button onclick="InsertarEntidad('interseccion','ecuacion');">\( \cap \)</button><button onclick="InsertarEntidad('menor','ecuacion');">\( < \)</button><button onclick="InsertarEntidad('menorigual','ecuacion');">\( \leq \)</button><button onclick="InsertarEntidad('mayor','ecuacion');">\( > \)</button><button onclick="InsertarEntidad('mayorigual','ecuacion');">\( \geq \)</button><button onclick="InsertarEntidad('distinto','ecuacion');">\( \neq \)</button><button onclick="InsertarEntidad('mayormenor','ecuacion');">\( \lessgtr \)</button></div>
+<div><button onclick="InsertarEntidad('y','ecuacion');">\( \wedge \)</button><button onclick="InsertarEntidad('o','ecuacion');">\( \vee \)</button><button onclick="InsertarEntidad('oexcl','ecuacion');">\( \veebar \)</button><button onclick="InsertarEntidad('entonces','ecuacion');">\( \Rightarrow \)</button><button onclick="InsertarEntidad('sii','ecuacion');">\( \Leftrightarrow \)</button><button onclick="InsertarEntidad('porlotanto','ecuacion');">\( \therefore \)</button><button onclick="InsertarEntidad('en','ecuacion');">\( \rightarrow \)</button><button onclick="InsertarEntidad('composicion','ecuacion');">\( \circ \)</button></div>
+<div><button onclick="InsertarEntidad('paralela','ecuacion');">\( \parallel \)</button><button onclick="InsertarEntidad('perpendicular','ecuacion');">\( \perp \)</button><button onclick="InsertarEntidad('vectorial','ecuacion');">\( \times \)</button><button onclick="InsertarEntidad('equivalente','ecuacion');">\( \equiv \)</button><button onclick="InsertarEntidad('aproximadamente','ecuacion');">\( \approx \)</button><button onclick="InsertarEntidad('aprox','ecuacion');">\( \cong \)</button><button onclick="InsertarEntidad('semejante','ecuacion');">\( \sim \)</button><button onclick="InsertarEntidad('congruente','ecuacion');">\( {=}_{\text{c}} \)</button></div>
+</div>
+<div class="flexcenter">
+<p class="link"><a href="https://manualdelatex.com/simbolos" target="_blank">Ver más símbolos</a></p>
+</div>
+</td>
+</tr></table>
+<table class="botones"><tr><td class="conborde">
+<button onclick="InsertarEntidad('esp1','ecuacion');">\( a\,b \)</button><button onclick="InsertarEntidad('esp2','ecuacion');">\( a\;b \)</button><button onclick="InsertarEntidad('esp3','ecuacion');">\( a\quad b \)</button><button onclick="InsertarEntidad('esp4','ecuacion');">\( a\qquad b \)</button><button onclick="InsertarEntidad('espneg','ecuacion');">\( a\!b \)</button><br>
+<button onclick="InsertarEntidad('rojo','ecuacion');">\( \color{red} \blacksquare \)</button><button onclick="InsertarEntidad('verde','ecuacion');">\( \color{green} \blacksquare \)</button><button onclick="InsertarEntidad('azul','ecuacion');">\( \color{blue} \blacksquare \)</button><button onclick="InsertarEntidad('naranja','ecuacion');">\( \color{orange} \blacksquare \)</button><button onclick="InsertarEntidad('amarillo','ecuacion');">\( \color{yellow} \blacksquare \)</button><button onclick="InsertarEntidad('purpura','ecuacion');">\( \color{purple} \blacksquare \)</button><button onclick="InsertarEntidad('negro','ecuacion');">\( \square \)</button><br>
+</td><td class="conborde">
+<button onclick="InsertarEntidad('enorme','ecuacion');">\( \huge ABC \)</button><button onclick="InsertarEntidad('grande','ecuacion');">\( \large ABC \)</button><button onclick="InsertarEntidad('pequeno','ecuacion');">\( \small ABC \)</button><button onclick="InsertarEntidad('diminuto','ecuacion');">\( \tiny ABC \)</button>
+</td><td><button onclick="Deshacer();">Deshacer</button></td></tr></table>
+<details>
+<summary class="link">Clic aquí para desplegar/ocultar otros botones</summary>
+<table><tr><td class="conborde">
+<button onclick="InsertarEntidad('limite','ecuacion');">\( \displaystyle\lim_{x \to a} \)</button><button onclick="InsertarEntidad('integralindef','ecuacion');">\( \displaystyle\int \)</button><button onclick="InsertarEntidad('integraldef','ecuacion');">\( \displaystyle\int_{a}^{b} \)</button><button onclick="InsertarEntidad('derivada','ecuacion');">\( \frac{\text{d}}{\text{d}x} \)</button><button onclick="InsertarEntidad('derivadaparcial','ecuacion');">\( \frac{\partial}{\partial x} \)</button>
+<button onclick="InsertarEntidad('d','ecuacion');">\( \text{d} \)</button><button onclick="InsertarEntidad('dj','ecuacion');">\( \partial \)</button>
+<button onclick="InsertarEntidad('sumatoria','ecuacion');">\( \displaystyle\sum_{k=1}^{N} \)</button><button onclick="InsertarEntidad('productoria','ecuacion');">\( \displaystyle\prod_{k=1}^{N} \)</button><button onclick="InsertarEntidad('uniongen','ecuacion');">\( \displaystyle\bigcup_{i \in I} \)</button><button onclick="InsertarEntidad('intersecciongen','ecuacion');">\( \displaystyle\bigcap_{i \in I} \)</button>
+<button onclick="document.getElementById('crearsistemadeecuaciones').showModal();">\( \left \{ \begin{matrix}{ ... }\\{ ... }\\{ ... }\end{matrix}\right. \)</button>
+<button onclick="document.getElementById('crearmatriz').showModal();">\( \begin{pmatrix}  0 & \cdots & 0 \\  \vdots & \ddots &  \vdots \\  0 & \cdots & 0 \end{pmatrix} \)</button><button onclick="document.getElementById('crearfunciontrozos').showModal();">\( f(x)=\left \{ \begin{matrix}{ ... }&{ si\; ... }\\{ ... }&{ si\; ... }\end{matrix} \right. \)</button>
+</td></tr></table>
+
+</details>
+<br>
+<button style="background-color: blue" onclick="document.getElementById('asistente').showModal();">Insertar desde asistente</button>
+<button style="background-color: white; color:blue;" onclick="{document.getElementById('asistente').showModal();mathField.latex(document.getElementById('ecuacion').value);}">Enviar código al asistente <font size="-2" color="red">(Puede fallar)</font></button>
+<br>
+<textarea id="ecuacion" onKeyUp="VistaPrevia();" rows="4" cols="90" placeholder="Por ejemplo: \frac{2}{3}" autofocus="autofocus" value=""></textarea>
+<br><br><button onclick="{copyToClipboard(document.getElementById('ecuacion').value);AvisodeCopiado();}">Copiar lo ingresado</button><button onclick="{copyToClipboard('\\( ' + document.getElementById('ecuacion').value + ' \\)');AvisodeCopiado();}">Copiar para insertar en el aula</button><button onclick="{document.getElementById('ecuacion').value = '';VistaPrevia();}">Vaciar</button><button onclick="QuitarEspaciosEnTextarea('ecuacion');">Quitar espacios de sobra</button><br>
+<button onclick="AgregarAlHistorial();">Agregar al historial de ecuaciones</button><br>
+<button onclick="{CopiarCodigoHistorial();AvisodeCopiado();}">Copiar todas las ecuaciones del historial para insertar en el aula</button>
+<hr>
+<p>[ Vista previa ↓ ]</p>
+<div id="Vista"></div>
+</td><td valign="top">
+<div id="tablahistorial" style="overflow:auto;"class="fondotabla"></div>
+</td>
+</div>
+</tr></table>
+<!-- Dialogos -->
+<dialog id="avisodecopiado" >
+<h2><i><b>Código copiado al portapapeles! :-)</b></i></h2>
+</dialog>
+<!-- Matriz  -->
+<dialog id="crearmatriz">
+<h2><b><u>Insertar matriz</u></b></h2>
+<table><tr><td>Símbolo:</td><td>
+<select id="tipomatriz">
+<option selected value="pmatrix">( )</option>
+<option value="vmatrix">| |</option>
+<option value="bmatrix">[ ]</option>
+<option value="Bmatrix">{ }</option>
+<option value="Vmatrix">|| ||</option>
+<option value="matrix">Ninguno</option>
+</select></td></tr>
+<tr><td>Filas:</td><td><input type="number" id="filasmatriz"></td></tr><tr><td>Columnas:</td><td><input type="number" id="colmatriz"></td></tr></table><br>
+<button onclick="{InsertarMatriz('ecuacion');}">Insertar matriz</button> <button onclick="document.getElementById('crearmatriz').close();">Cerrar</button>
+</dialog>
+<!-- Matriz  -->
+<!-- Funcion por trozos -->
+<dialog id="crearfunciontrozos">
+<h2><b><u>Insertar función definida por trozos</u></b></h2>
+<p>Cantidad de trozos: <input type="number" id="trozos">
+<button onclick="{InsertarTrozos('ecuacion');}">Insertar función</button> <button onclick="document.getElementById('crearfunciontrozos').close();">Cerrar</button></p>
+</dialog>
+<!-- Funcion por trozos -->
+<!-- Sistema de ecuaciones -->
+<dialog id="crearsistemadeecuaciones">
+<h2><b><u>Insertar sistema de ecuaciones</u></b></h2>
+<p>Cantidad de ecuaciones: <input type="number" id="cantecuaciones">
+<button onclick="{InsertarSisEc('ecuacion');}">Insertar sistema</button> <button onclick="document.getElementById('crearsistemadeecuaciones').close();">Cerrar</button></p>
+</dialog>
+<!-- Sistema de ecuaciones -->
+<!-- Asistente -->
+<dialog id="asistente">
+<center><h2><b><u>Asistente para la creación de código</u></b></h2></center>
+<font size="-1">(Nota: Al escribir puede usar '_' para subindice, '^' para superindice y también comandos)</font>
+ 
+<p><b>Escriba la ecuación aquí ↓</b></p><span id="math-field" style="background-color: white; color: blue; width: 500px;vertical-align: center;"></span>
+
+<center><table style="margin-top: 5px"><tr><td class="conborde" style="zoom: 120%">
+<button onclick="Agrega_Ec('cmd','/');">\( \frac{\blacksquare}{\blacksquare} \)</button>
+<button onclick="Agrega_Ec('cmd','\\sqrt');">\( \sqrt{\blacksquare} \)</button>
+<button onclick="Agrega_Ec('cmd','\\nthroot');">\( \sqrt[\blacksquare]{\blacksquare} \)</button>
+<button onclick="Agrega_Ec('cmd','_');">\( x_{\tiny\blacksquare} \)</button>
+<button onclick="Agrega_Ec('cmd','^');">\( x^{\tiny\blacksquare} \)</button>
+<button onclick="Agrega_Ec('write','_{}^{}');">\( x_{\tiny\blacksquare}^{\tiny\blacksquare} \)</button>
+<button onclick="Agrega_Ec('write','\\log_{}');">\( \log_{\tiny\blacksquare} \)</button>
+<!--
+<button onclick="Agrega_Ec('cmd','\\sum');">\( \sum_{\blacksquare}^{\blacksquare} \)</button>
+<button onclick="Agrega_Ec('cmd','\\prod');">\( \prod_{\blacksquare}^{\blacksquare} \)</button>
+<button onclick="Agrega_Ec('keystroke','Backspace');">Deshacer</button>
+<button onclick="Agrega_Ec('keystroke','Left');">Izq</button>
+<button onclick="Agrega_Ec('keystroke','Right');">Der</button>
+-->
+</td></tr></table></center>
+
+<hr>
+<p><b>Código LaTeX de lo escrito (puede modificarse pero con cuidado)</b></p>
+<textarea id="latex" rows="3" cols="66" onKeyUp="mathField.latex(document.getElementById('latex').value);" ></textarea>
+
+<script>
+var mathFieldSpan = document.getElementById('math-field');
+var latexTextarea = document.getElementById('latex');
+
+var MQ = MathQuill.getInterface(2); // for backcompat
+var mathField = MQ.MathField(mathFieldSpan, {
+  spaceBehavesLikeTab: true, // configurable
+  handlers: {
+    edit: function() { // useful event handlers
+      latexTextarea.value = mathField.latex(); // simple API
+    }
+  }
+});
+
+function Agrega_Ec (tipo, entrada) {
+		if (tipo=='cmd') mathField.cmd(entrada);
+		if (tipo=='write') mathField.write(entrada);
+		if (tipo=='keystroke') mathField.keystroke(entrada);
+		mathField.focus();
+}
+</script>
+<br>
+<button onclick="InsertarDesdeAsistente('ecuacion')" style="background-color: blue;margin-top:5px;">Insertar código en el editor</button>
+<br><button onclick="SobrescribirDesdeAsistente('ecuacion')" style="background-color: red;margin-top:5px;">Sobrescribir el código del editor por el actual</button>
+<br><button onclick="{mathField.latex('');document.getElementById('asistente').close();}" style="margin-top:5px;">Cerrar</button>
+</dialog>
+<!-- Asistente -->
+<!-- Dialogos -->
+</body>
+</html>
